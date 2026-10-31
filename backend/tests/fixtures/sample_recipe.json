@@ -1,0 +1,116 @@
+{
+  "format_version": "1.0",
+  "data_status": "illustrative",
+  "recipe": {
+    "id": "00000000-0000-0000-0000-000000000101",
+    "slug": "illustrative-ven-pongal",
+    "title": "Ven Pongal",
+    "cuisine": "south_indian",
+    "food_preference": "vegetarian",
+    "is_active": false,
+    "current_version_id": "00000000-0000-0000-0000-000000000102",
+    "publication_status": "draft",
+    "version": {
+      "id": "00000000-0000-0000-0000-000000000102",
+      "version_number": 1,
+      "description": "A simple illustrative rice and moong dal dish for testing the recipe import format.",
+      "preparation_minutes": 10,
+      "cooking_minutes": 25,
+      "servings": 2,
+      "skill_level": "beginner",
+      "published_at": null,
+      "ingredients": [
+        {
+          "ingredient_id": "00000000-0000-0000-0000-000000000111",
+          "canonical_name": "rice",
+          "state": "raw",
+          "default_unit": "g",
+          "quantity": 100,
+          "unit": "g",
+          "ingredient_state": "raw",
+          "display_order": 1
+        },
+        {
+          "ingredient_id": "00000000-0000-0000-0000-000000000112",
+          "canonical_name": "split moong dal",
+          "state": "raw",
+          "default_unit": "g",
+          "quantity": 60,
+          "unit": "g",
+          "ingredient_state": "raw",
+          "display_order": 2
+        },
+        {
+          "ingredient_id": "00000000-0000-0000-0000-000000000113",
+          "canonical_name": "ghee",
+          "state": "raw",
+          "default_unit": "tsp",
+          "quantity": 2,
+          "unit": "tsp",
+          "ingredient_state": "raw",
+          "display_order": 3
+        },
+        {
+          "ingredient_id": "00000000-0000-0000-0000-000000000114",
+          "canonical_name": "cumin seeds",
+          "state": "raw",
+          "default_unit": "tsp",
+          "quantity": 1,
+          "unit": "tsp",
+          "ingredient_state": "raw",
+          "display_order": 4
+        },
+        {
+          "ingredient_id": "00000000-0000-0000-0000-000000000115",
+          "canonical_name": "black pepper",
+          "state": "raw",
+          "default_unit": "tsp",
+          "quantity": 0.5,
+          "unit": "tsp",
+          "ingredient_state": "raw",
+          "display_order": 5
+        }
+      ],
+      "steps": [
+        {
+          "step_number": 1,
+          "instruction": "Rinse the rice and split moong dal until the water is mostly clear.",
+          "duration_minutes": 3
+        },
+        {
+          "step_number": 2,
+          "instruction": "Cook the rice and dal together with water until soft.",
+          "duration_minutes": 20
+        },
+        {
+          "step_number": 3,
+          "instruction": "Warm the ghee, add cumin and black pepper, then stir the tempering into the cooked rice and dal.",
+          "duration_minutes": 2
+        }
+      ],
+      "nutrition": {
+        "recipe_version_id": "00000000-0000-0000-0000-000000000102",
+        "serving_size": 1,
+        "serving_unit": "serving",
+        "calories_kcal": null,
+        "protein_g": null,
+        "carbohydrate_g": null,
+        "fat_g": null,
+        "calculation_note": "Illustrative fixture: nutrition has not been verified and values are intentionally unknown.",
+        "calculated_at": "2026-01-01T00:00:00Z",
+        "source": null
+      }
+    },
+    "allergen_info": {
+      "derived_from_ingredient_mappings": true,
+      "items": [
+        {
+          "allergen_id": "00000000-0000-0000-0000-000000000191",
+          "name": "milk",
+          "source_note": "Illustrative fixture mapping; not verified.",
+          "data_status": "illustrative"
+        }
+      ]
+    }
+  }
+}
