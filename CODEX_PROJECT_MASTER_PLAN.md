@@ -1025,13 +1025,15 @@ task. Detailed acceptance criteria live in the phase sections above.
 
 **Current phase:** Phase 1 --- Customer application foundation\
 **Last completed implementation task:** Fix Supabase GoTrue signup response
-parsing after production `user_id_validation_failed` evidence\
+parsing after production `user_id_validation_failed` evidence (commit
+`bcf20aa`)\
 **Last verified checks:** The parser now accepts the documented raw confirmation
 response whose user object is the top-level JSON object, and the authenticated
 response containing access/refresh tokens and a user object. It strictly
 validates the user UUID and token/session fields while preserving privacy-safe
 logging. Focused authentication tests passed 33 tests; full backend `pytest`
 passed 101 tests with 3 existing deprecation warnings.\
+Commit `bcf20aa` was pushed successfully to `origin/master`.\
 **Next recommended task:** Send one real customer registration test email and
 verify delivery and confirmation behavior (P0-SMTP).\
 **Current known blockers:** Supabase signup now completes with confirmation
