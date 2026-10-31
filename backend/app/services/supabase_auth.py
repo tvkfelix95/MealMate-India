@@ -3,9 +3,49 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 import httpx
+
+
+logger = logging.getLogger(__name__)
+
+
+def _exception_chain_contains(exc: BaseException, class_name: str) -> bool:
+    """Check exception types without inspecting or logging exception messages."""
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if class_name in type(current).__name__.upper():
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _failure_category(exc: BaseException) -> str:
+    """Return a small, non-sensitive category for an Auth request failure."""
+    if isinstance(exc, httpx.TimeoutException):
+        return "timeout"
+    if _exception_chain_contains(exc, "SSL"):
+        return "tls"
+    if isinstance(exc, httpx.NetworkError):
+        return "network"
+    if isinstance(exc, ValueError):
+        return "response_parsing"
+    return "provider_error"
+
+
+def _provider_error_category(data: dict[str, Any]) -> str:
+    """Classify provider error payloads without logging their contents."""
+    code = str(data.get("code", "")).lower()
+    message = str(data.get("msg", data.get("message", ""))).lower()
+    if code in {"user_already_exists", "email_exists"} or "already registered" in message:
+        return "duplicate_email"
+    if code in {"invalid_credentials", "invalid_login_credentials"} or "invalid login credentials" in message:
+        return "invalid_credentials"
+    return "provider_error"
 
 
 class SupabaseAuthError(Exception):
@@ -66,8 +106,19 @@ class SupabaseAuthService:
             )
             data = response.json() if response.content else {}
         except (httpx.HTTPError, ValueError) as exc:
+            logger.warning(
+                "Supabase Auth request failed: exception_class=%s category=%s",
+                type(exc).__name__,
+                _failure_category(exc),
+            )
             raise SupabaseAuthError("Authentication provider unavailable") from exc
         if response.status_code >= 400:
+            category = _provider_error_category(data) if isinstance(data, dict) else "invalid_response"
+            logger.warning(
+                "Supabase Auth HTTP failure: status_code=%s category=%s",
+                response.status_code,
+                category,
+            )
             if not isinstance(data, dict):
                 raise SupabaseAuthError("Authentication request failed")
             self._raise_provider_error(data)
@@ -103,11 +154,10 @@ class SupabaseAuthService:
 
     @staticmethod
     def _raise_provider_error(data: dict[str, Any]) -> None:
-        code = str(data.get("code", "")).lower()
-        message = str(data.get("msg", data.get("message", ""))).lower()
-        if code in {"user_already_exists", "email_exists"} or "already registered" in message:
+        category = _provider_error_category(data)
+        if category == "duplicate_email":
             raise DuplicateEmailError("Email is already registered")
-        if code in {"invalid_credentials", "invalid_login_credentials"} or "invalid login credentials" in message:
+        if category == "invalid_credentials":
             raise InvalidCredentialsError("Invalid email or password")
         raise SupabaseAuthError("Authentication request failed")
 
