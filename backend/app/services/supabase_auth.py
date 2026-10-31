@@ -177,19 +177,22 @@ class SupabaseAuthService:
         user = data.get("user")
         if not isinstance(user, dict) or not isinstance(user.get("id"), str):
             raise SupabaseAuthError("Invalid authentication provider response")
-        access_token = session.get("access_token")
-        refresh_token = session.get("refresh_token")
+        raw_access_token = session.get("access_token")
+        raw_refresh_token = session.get("refresh_token")
+        if (
+            (raw_access_token is not None and not isinstance(raw_access_token, str))
+            or (raw_refresh_token is not None and not isinstance(raw_refresh_token, str))
+        ):
+            raise SupabaseAuthError("Invalid authentication provider response")
+        access_token = raw_access_token if isinstance(raw_access_token, str) else None
+        refresh_token = raw_refresh_token if isinstance(raw_refresh_token, str) else None
         if require_tokens and (not isinstance(access_token, str) or not isinstance(refresh_token, str)):
             raise SupabaseAuthError("Invalid authentication provider response")
-        email_confirmation_required = (
-            "email_confirmed_at" in user
-            and not user.get("email_confirmed_at")
-            and not user.get("confirmed_at")
-        )
+        email_confirmation_required = access_token is None and refresh_token is None
         return AuthSession(
             user_id=user["id"],
-            access_token=access_token if isinstance(access_token, str) else None,
-            refresh_token=refresh_token if isinstance(refresh_token, str) else None,
+            access_token=access_token,
+            refresh_token=refresh_token,
             email_confirmation_required=email_confirmation_required,
         )
 

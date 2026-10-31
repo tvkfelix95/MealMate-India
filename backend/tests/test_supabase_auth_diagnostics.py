@@ -115,3 +115,47 @@ def test_provider_email_confirmation_error_is_unverified(monkeypatch: pytest.Mon
 
     with pytest.raises(UnverifiedEmailError, match="must be verified"):
         service.login("user@example.com", "password123")
+
+
+def test_signup_without_tokens_or_confirmation_timestamps_is_pending() -> None:
+    session = SupabaseAuthService._session_from_response(
+        {"user": {"id": "user-id"}},
+        require_tokens=False,
+    )
+
+    assert session.user_id == "user-id"
+    assert session.access_token is None
+    assert session.refresh_token is None
+    assert session.email_confirmation_required is True
+
+
+def test_signup_without_tokens_with_unconfirmed_timestamps_is_pending() -> None:
+    session = SupabaseAuthService._session_from_response(
+        {
+            "user": {
+                "id": "user-id",
+                "email_confirmed_at": None,
+                "confirmed_at": None,
+            }
+        },
+        require_tokens=False,
+    )
+
+    assert session.email_confirmation_required is True
+
+
+def test_signup_response_requires_user_id() -> None:
+    with pytest.raises(SupabaseAuthError, match="Invalid authentication provider response"):
+        SupabaseAuthService._session_from_response({"user": {}}, require_tokens=False)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"user": {"id": "user-id"}, "session": {"access_token": "access-token"}},
+        {"user": {"id": "user-id"}, "session": {"access_token": 123}},
+    ],
+)
+def test_authenticated_session_is_not_treated_as_pending_when_incomplete(response: dict) -> None:
+    with pytest.raises(SupabaseAuthError, match="Invalid authentication provider response"):
+        SupabaseAuthService._session_from_response(response, require_tokens=True)
