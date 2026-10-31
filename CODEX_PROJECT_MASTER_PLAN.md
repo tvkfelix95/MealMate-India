@@ -1030,7 +1030,8 @@ handling while preserving retryable profile creation (commit `f11c488`)\
 backend `pytest` passed 97 tests with 3 existing deprecation warnings. The
 signup parser now accepts a valid user ID with both tokens absent as
 confirmation-pending, including responses without confirmation timestamp
-fields, while rejecting missing IDs, malformed tokens and incomplete sessions.\
+fields, while rejecting missing IDs, malformed tokens and incomplete sessions.
+Commits `f11c488` and `8f90a16` were pushed successfully to `origin/master`.\
 **Next recommended task:** Send one real customer registration test email and
 verify delivery and confirmation behavior (P0-SMTP).\
 **Current known blockers:** Supabase signup now completes with confirmation
