@@ -1025,7 +1025,7 @@ task. Detailed acceptance criteria live in the phase sections above.
 
 **Current phase:** Phase 1 --- Customer application foundation\
 **Last completed implementation task:** Fix confirmation-pending signup response
-handling while preserving retryable profile creation\
+handling while preserving retryable profile creation (commit `f11c488`)\
 **Last verified checks:** Focused authentication tests passed 29 tests; full
 backend `pytest` passed 97 tests with 3 existing deprecation warnings. The
 signup parser now accepts a valid user ID with both tokens absent as
