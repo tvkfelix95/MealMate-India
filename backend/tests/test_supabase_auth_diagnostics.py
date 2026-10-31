@@ -159,3 +159,109 @@ def test_signup_response_requires_user_id() -> None:
 def test_authenticated_session_is_not_treated_as_pending_when_incomplete(response: dict) -> None:
     with pytest.raises(SupabaseAuthError, match="Invalid authentication provider response"):
         SupabaseAuthService._session_from_response(response, require_tokens=True)
+
+
+def test_registration_logs_safe_success_stages_without_sensitive_values(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class FakeResponse:
+        content = b"provider response"
+        status_code = 200
+
+        @staticmethod
+        def json() -> dict[str, object]:
+            return {
+                "user": {"id": "user-id"},
+                "access_token": "access-token-secret",
+                "refresh_token": "refresh-token-secret",
+            }
+
+    monkeypatch.setattr(
+        "app.services.supabase_auth.httpx.post",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.services.supabase_auth"):
+        SupabaseAuthService("https://example.supabase.co", "api-key-secret").register(
+            "private@example.com",
+            "password-secret",
+        )
+
+    assert "stage=signup_request_started" in caplog.text
+    assert "stage=http_response_received status_code=200" in caplog.text
+    assert "stage=response_json_parsed" in caplog.text
+    assert "stage=user_id_validation_failed" not in caplog.text
+    assert "stage=session_validation_passed" in caplog.text
+    assert "stage=registration_completed" in caplog.text
+    for sensitive_value in (
+        "private@example.com",
+        "password-secret",
+        "access-token-secret",
+        "refresh-token-secret",
+        "api-key-secret",
+    ):
+        assert sensitive_value not in caplog.text
+
+
+def test_registration_logs_sanitised_json_parse_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class FakeResponse:
+        content = b"invalid response"
+        status_code = 200
+
+        @staticmethod
+        def json() -> dict[str, object]:
+            raise ValueError("password=private-value")
+
+    monkeypatch.setattr(
+        "app.services.supabase_auth.httpx.post",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.services.supabase_auth"):
+        with pytest.raises(SupabaseAuthError):
+            SupabaseAuthService("https://example.supabase.co", "safe-key").register(
+                "private@example.com",
+                "password-secret",
+            )
+
+    assert "stage=response_json_parse_failed" in caplog.text
+    assert "exception_class=ValueError" in caplog.text
+    assert "category=response_parsing" in caplog.text
+    assert "password=private-value" not in caplog.text
+    assert "private@example.com" not in caplog.text
+    assert "password-secret" not in caplog.text
+
+
+def test_registration_logs_user_id_validation_failure_without_response_data(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class FakeResponse:
+        content = b"provider response containing private data"
+        status_code = 200
+
+        @staticmethod
+        def json() -> dict[str, object]:
+            return {"user": {"email": "private@example.com"}}
+
+    monkeypatch.setattr(
+        "app.services.supabase_auth.httpx.post",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.services.supabase_auth"):
+        with pytest.raises(SupabaseAuthError):
+            SupabaseAuthService("https://example.supabase.co", "safe-key").register(
+                "private@example.com",
+                "password-secret",
+            )
+
+    assert "stage=user_id_validation_failed" in caplog.text
+    assert "exception_class=SupabaseAuthError" in caplog.text
+    assert "category=response_schema" in caplog.text
+    assert "private@example.com" not in caplog.text
+    assert "password-secret" not in caplog.text

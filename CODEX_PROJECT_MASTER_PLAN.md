@@ -1024,14 +1024,15 @@ task. Detailed acceptance criteria live in the phase sections above.
 ## 7. Current position --- update this after each task
 
 **Current phase:** Phase 1 --- Customer application foundation\
-**Last completed implementation task:** Fix confirmation-pending signup response
-handling while preserving retryable profile creation (commit `f11c488`)\
-**Last verified checks:** Focused authentication tests passed 29 tests; full
-backend `pytest` passed 97 tests with 3 existing deprecation warnings. The
-signup parser now accepts a valid user ID with both tokens absent as
-confirmation-pending, including responses without confirmation timestamp
-fields, while rejecting missing IDs, malformed tokens and incomplete sessions.
-Commits `f11c488` and `8f90a16` were pushed successfully to `origin/master`.\
+**Last completed implementation task:** Add privacy-safe registration failure
+stage diagnostics while preserving confirmation-pending handling (commits
+`f11c488`, `fd28868`)\
+**Last verified checks:** Focused authentication tests passed 32 tests; full
+backend `pytest` passed 100 tests with 3 existing deprecation warnings. Logs
+cover signup start, HTTP status, JSON parsing, user-ID validation,
+token/session validation, confirmation-pending responses and successful
+registration without logging personal data, credentials, tokens or response
+bodies.\
 **Next recommended task:** Send one real customer registration test email and
 verify delivery and confirmation behavior (P0-SMTP).\
 **Current known blockers:** Supabase signup now completes with confirmation

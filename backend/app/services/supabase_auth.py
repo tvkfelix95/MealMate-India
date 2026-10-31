@@ -99,6 +99,10 @@ class SupabaseAuthService:
 
     def _post(self, path: str, payload: dict[str, str] | None = None, access_token: str | None = None) -> dict[str, Any]:
         if not self.base_url or not self.headers["apikey"]:
+            logger.warning(
+                "Supabase Auth request failed: stage=request_configuration_failed "
+                "exception_class=SupabaseAuthError category=configuration"
+            )
             raise SupabaseAuthError("Authentication is not configured")
         headers = dict(self.headers)
         if access_token:
@@ -110,27 +114,48 @@ class SupabaseAuthService:
                 json=payload,
                 timeout=10.0,
             )
-            data = response.json() if response.content else {}
         except (httpx.HTTPError, ValueError) as exc:
             logger.warning(
-                "Supabase Auth request failed: exception_class=%s category=%s",
+                "Supabase Auth request failed: stage=request_failed exception_class=%s category=%s",
                 type(exc).__name__,
                 _failure_category(exc),
             )
             raise SupabaseAuthError("Authentication provider unavailable") from exc
+        logger.info(
+            "Supabase Auth request: stage=http_response_received status_code=%s",
+            response.status_code,
+        )
+        try:
+            data = response.json() if response.content else {}
+        except ValueError as exc:
+            logger.warning(
+                "Supabase Auth request failed: stage=response_json_parse_failed "
+                "exception_class=%s category=response_parsing",
+                type(exc).__name__,
+            )
+            raise SupabaseAuthError("Authentication provider unavailable") from exc
+        logger.info("Supabase Auth request: stage=response_json_parsed")
         if response.status_code >= 400:
             category = _provider_error_category(data) if isinstance(data, dict) else "invalid_response"
             logger.warning(
-                "Supabase Auth HTTP failure: status_code=%s category=%s",
+                "Supabase Auth HTTP failure: stage=provider_http_error status_code=%s category=%s",
                 response.status_code,
                 category,
             )
             if not isinstance(data, dict):
+                logger.warning(
+                    "Supabase Auth request failed: stage=response_schema_validation_failed "
+                    "exception_class=SupabaseAuthError category=response_schema"
+                )
                 raise SupabaseAuthError("Authentication request failed")
             if response.status_code == 429:
                 raise RateLimitError("Authentication requests are temporarily rate limited")
             self._raise_provider_error(data)
         if not isinstance(data, dict):
+            logger.warning(
+                "Supabase Auth request failed: stage=response_schema_validation_failed "
+                "exception_class=SupabaseAuthError category=response_schema"
+            )
             raise SupabaseAuthError("Invalid authentication provider response")
         return data
 
@@ -176,6 +201,10 @@ class SupabaseAuthService:
         session = data.get("session") if isinstance(data.get("session"), dict) else data
         user = data.get("user")
         if not isinstance(user, dict) or not isinstance(user.get("id"), str):
+            logger.warning(
+                "Supabase Auth session validation failed: stage=user_id_validation_failed "
+                "exception_class=SupabaseAuthError category=response_schema"
+            )
             raise SupabaseAuthError("Invalid authentication provider response")
         raw_access_token = session.get("access_token")
         raw_refresh_token = session.get("refresh_token")
@@ -183,12 +212,21 @@ class SupabaseAuthService:
             (raw_access_token is not None and not isinstance(raw_access_token, str))
             or (raw_refresh_token is not None and not isinstance(raw_refresh_token, str))
         ):
+            logger.warning(
+                "Supabase Auth session validation failed: stage=token_validation_failed "
+                "exception_class=SupabaseAuthError category=response_schema"
+            )
             raise SupabaseAuthError("Invalid authentication provider response")
         access_token = raw_access_token if isinstance(raw_access_token, str) else None
         refresh_token = raw_refresh_token if isinstance(raw_refresh_token, str) else None
         if require_tokens and (not isinstance(access_token, str) or not isinstance(refresh_token, str)):
+            logger.warning(
+                "Supabase Auth session validation failed: stage=token_validation_failed "
+                "exception_class=SupabaseAuthError category=incomplete_session"
+            )
             raise SupabaseAuthError("Invalid authentication provider response")
         email_confirmation_required = access_token is None and refresh_token is None
+        logger.info("Supabase Auth session validation: stage=session_validation_passed")
         return AuthSession(
             user_id=user["id"],
             access_token=access_token,
@@ -197,12 +235,19 @@ class SupabaseAuthService:
         )
 
     def register(self, email: str, password: str) -> AuthSession:
+        logger.info("Supabase Auth registration: stage=signup_request_started")
         data = self._post("/signup", {"email": email, "password": password})
         session = self._session_from_response(data, require_tokens=False)
         if session.email_confirmation_required:
+            logger.info("Supabase Auth registration: stage=confirmation_pending")
             return session
         if not session.access_token or not session.refresh_token:
+            logger.warning(
+                "Supabase Auth registration failed: stage=token_validation_failed "
+                "exception_class=SupabaseAuthError category=incomplete_session"
+            )
             raise SupabaseAuthError("Invalid authentication provider response")
+        logger.info("Supabase Auth registration: stage=registration_completed")
         return session
 
     def login(self, email: str, password: str) -> AuthSession:
