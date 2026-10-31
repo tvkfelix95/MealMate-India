@@ -26,8 +26,15 @@ function CustomerAuth({ initialMode, onBack }: CustomerAuthProps) {
 
     try {
       const session = await authenticate(email, password, mode)
+      if (mode === 'register' && session.email_confirmation_required) {
+        setSuccess('Account created. We sent a confirmation email. Verify your account, then log in.')
+        setMode('login')
+        setPassword('')
+        return
+      }
+
       if (!session.access_token) {
-        setSuccess('Account created. Check your email to verify your account, then log in.')
+        setSuccess('Account created. Verify your email, then log in.')
         setMode('login')
         setPassword('')
         return

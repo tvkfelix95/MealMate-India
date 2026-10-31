@@ -45,6 +45,8 @@ def _provider_error_category(data: dict[str, Any]) -> str:
         return "duplicate_email"
     if code in {"invalid_credentials", "invalid_login_credentials"} or "invalid login credentials" in message:
         return "invalid_credentials"
+    if code in {"email_not_confirmed", "email_not_confirmed_error"} or "email not confirmed" in message:
+        return "unverified_email"
     return "provider_error"
 
 
@@ -61,6 +63,10 @@ class InvalidCredentialsError(SupabaseAuthError):
 
 
 class UnverifiedEmailError(SupabaseAuthError):
+    pass
+
+
+class RateLimitError(SupabaseAuthError):
     pass
 
 
@@ -121,6 +127,8 @@ class SupabaseAuthService:
             )
             if not isinstance(data, dict):
                 raise SupabaseAuthError("Authentication request failed")
+            if response.status_code == 429:
+                raise RateLimitError("Authentication requests are temporarily rate limited")
             self._raise_provider_error(data)
         if not isinstance(data, dict):
             raise SupabaseAuthError("Invalid authentication provider response")
@@ -159,6 +167,8 @@ class SupabaseAuthService:
             raise DuplicateEmailError("Email is already registered")
         if category == "invalid_credentials":
             raise InvalidCredentialsError("Invalid email or password")
+        if category == "unverified_email":
+            raise UnverifiedEmailError("Email address must be verified")
         raise SupabaseAuthError("Authentication request failed")
 
     @staticmethod

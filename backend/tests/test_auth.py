@@ -3,6 +3,7 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.dependencies import get_auth_service, get_current_user, get_token_verifier
 from app.db.session import get_db
@@ -12,6 +13,7 @@ from app.services.supabase_auth import (
     AuthSession,
     DuplicateEmailError,
     InvalidCredentialsError,
+    RateLimitError,
     UnverifiedEmailError,
 )
 
@@ -36,6 +38,14 @@ class FakeProfileDB:
 
     def refresh(self, profile) -> None:
         return None
+
+    def rollback(self) -> None:
+        return None
+
+
+class FailingProfileDB:
+    def get(self, model, user_id):
+        raise SQLAlchemyError("private database details")
 
     def rollback(self) -> None:
         return None
@@ -166,6 +176,39 @@ def test_register_returns_supabase_session() -> None:
     assert str(db.profile.user_id) == "00000000-0000-0000-0000-000000000001"
 
 
+def test_register_returns_confirmation_required_without_profile_dependency() -> None:
+    class ConfirmationService(FakeAuthService):
+        def register(self, email: str, password: str) -> AuthSession:
+            return AuthSession("00000000-0000-0000-0000-000000000001", None, None, True)
+
+    class UnexpectedProfileDB:
+        def get(self, model, user_id):
+            raise AssertionError("profile creation must be deferred until authentication")
+
+    with_auth_service(ConfirmationService())
+    app.dependency_overrides[get_db] = lambda: UnexpectedProfileDB()
+    try:
+        response = client.post("/api/v1/auth/register", json={"email": "user@example.com", "password": "password123"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json()["email_confirmation_required"] is True
+    assert response.json()["access_token"] is None
+
+
+def test_register_success_is_preserved_when_profile_creation_fails() -> None:
+    with_auth_service(FakeAuthService())
+    app.dependency_overrides[get_db] = lambda: FailingProfileDB()
+    try:
+        response = client.post("/api/v1/auth/register", json={"email": "user@example.com", "password": "password123"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json()["user_id"] == "00000000-0000-0000-0000-000000000001"
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -223,6 +266,21 @@ def test_unverified_email_is_rejected() -> None:
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Email address must be verified"}
+
+
+def test_provider_rate_limit_is_returned_as_429() -> None:
+    class RateLimitedService(FakeAuthService):
+        def register(self, email: str, password: str) -> AuthSession:
+            raise RateLimitError("provider details")
+
+    with_auth_service(RateLimitedService())
+    try:
+        response = client.post("/api/v1/auth/register", json={"email": "user@example.com", "password": "password123"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+    assert response.json() == {"detail": "Too many authentication requests. Please try again later"}
 
 
 def test_logout_requires_verified_user_and_calls_supabase() -> None:

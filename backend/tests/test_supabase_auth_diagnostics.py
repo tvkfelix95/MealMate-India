@@ -4,7 +4,13 @@ import ssl
 import httpx
 import pytest
 
-from app.services.supabase_auth import SupabaseAuthError, SupabaseAuthService, _failure_category
+from app.services.supabase_auth import (
+    RateLimitError,
+    SupabaseAuthError,
+    SupabaseAuthService,
+    UnverifiedEmailError,
+    _failure_category,
+)
 
 
 @pytest.mark.parametrize(
@@ -71,3 +77,41 @@ def test_http_failure_logs_status_and_sanitised_category(
     assert "status_code=400" in caplog.text
     assert "category=duplicate_email" in caplog.text
     assert "private provider details" not in caplog.text
+
+
+def test_http_429_raises_sanitised_rate_limit_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResponse:
+        content = b"provider response"
+        status_code = 429
+
+        @staticmethod
+        def json() -> dict[str, str]:
+            return {"code": "over_email_send_rate_limit", "message": "private provider details"}
+
+    service = SupabaseAuthService("https://example.supabase.co", "safe-test-key")
+    monkeypatch.setattr(
+        "app.services.supabase_auth.httpx.post",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with pytest.raises(RateLimitError, match="temporarily rate limited"):
+        service.register("user@example.com", "password123")
+
+
+def test_provider_email_confirmation_error_is_unverified(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResponse:
+        content = b"provider response"
+        status_code = 400
+
+        @staticmethod
+        def json() -> dict[str, str]:
+            return {"code": "email_not_confirmed", "message": "private provider details"}
+
+    service = SupabaseAuthService("https://example.supabase.co", "safe-test-key")
+    monkeypatch.setattr(
+        "app.services.supabase_auth.httpx.post",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with pytest.raises(UnverifiedEmailError, match="must be verified"):
+        service.login("user@example.com", "password123")

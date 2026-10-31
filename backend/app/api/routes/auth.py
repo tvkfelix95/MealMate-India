@@ -7,6 +7,7 @@ from app.schemas.auth import AuthCredentials, AuthenticatedUserResponse, AuthSes
 from app.services.supabase_auth import (
     DuplicateEmailError,
     InvalidCredentialsError,
+    RateLimitError,
     SupabaseAuthError,
     SupabaseAuthService,
     UnverifiedEmailError,
@@ -47,6 +48,9 @@ def _auth_error(error: SupabaseAuthError) -> HTTPException:
     elif isinstance(error, UnverifiedEmailError):
         detail = "Email address must be verified"
         code = status.HTTP_403_FORBIDDEN
+    elif isinstance(error, RateLimitError):
+        detail = "Too many authentication requests. Please try again later"
+        code = status.HTTP_429_TOO_MANY_REQUESTS
     else:
         detail = "Authentication service unavailable"
         code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -70,13 +74,12 @@ def register(
         session = auth_service.register(credentials.email, credentials.password)
     except SupabaseAuthError as error:
         raise _auth_error(error) from error
-    try:
-        ensure_profile(db, session.user_id)
-    except ProfileDatabaseError as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Profile service unavailable",
-        ) from error
+    if not session.email_confirmation_required:
+        try:
+            ensure_profile(db, session.user_id)
+        except ProfileDatabaseError:
+            # Signup already succeeded; profile creation is retried after authentication.
+            pass
     return AuthSessionResponse(
         user_id=session.user_id,
         access_token=session.access_token,

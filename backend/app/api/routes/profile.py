@@ -7,8 +7,7 @@ from app.db.session import get_db
 from app.schemas.profile import ProfileResponse, ProfileUpdate
 from app.services.profile import (
     ProfileDatabaseError,
-    ProfileNotFoundError,
-    get_profile,
+    ensure_profile,
     update_profile,
 )
 
@@ -29,9 +28,7 @@ def get_my_profile(
     db: Session = Depends(get_db),
 ) -> ProfileResponse:
     try:
-        return get_profile(db, current_user.id)
-    except ProfileNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found") from error
+        return ensure_profile(db, current_user.id)
     except ProfileDatabaseError as error:
         raise _profile_error(error) from error
 
@@ -46,7 +43,5 @@ def update_my_profile(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No profile changes provided")
     try:
         return update_profile(db, current_user.id, changes.display_name)
-    except ProfileNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found") from error
     except ProfileDatabaseError as error:
         raise _profile_error(error) from error

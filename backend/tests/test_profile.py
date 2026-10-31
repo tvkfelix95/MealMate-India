@@ -1,13 +1,16 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.dependencies import get_current_user
 from app.core.security import AuthenticatedUser
 from app.db.session import get_db
 from app.main import app
 from app.models.profile import Profile
+from app.services.profile import ProfileDatabaseError, ensure_profile
 
 
 USER_A = "00000000-0000-0000-0000-000000000001"
@@ -50,13 +53,46 @@ def override_profile_dependencies(db: FakeProfileDB, user_id: str = USER_A) -> N
 
 def test_registration_creates_profile_once() -> None:
     db = FakeProfileDB()
-    from app.services.profile import ensure_profile
-
     ensure_profile(db, USER_A)
     ensure_profile(db, USER_A)
 
     assert list(db.profiles) == [UUID(USER_A)]
     assert db.profiles[UUID(USER_A)].display_name is None
+
+
+def test_profile_creation_retries_after_database_failure(caplog: pytest.LogCaptureFixture) -> None:
+    class RetryProfileDB(FakeProfileDB):
+        fail_next = True
+
+        def get(self, model, user_id: UUID):
+            if self.fail_next:
+                self.fail_next = False
+                raise SQLAlchemyError("private database details")
+            return super().get(model, user_id)
+
+    db = RetryProfileDB()
+    with caplog.at_level("WARNING", logger="app.services.profile"):
+        with pytest.raises(ProfileDatabaseError):
+            ensure_profile(db, USER_A)
+        profile_result = ensure_profile(db, USER_A)
+
+    assert profile_result.user_id == UUID(USER_A)
+    assert len(db.profiles) == 1
+    assert "category=database" in caplog.text
+    assert USER_A not in caplog.text
+
+
+def test_profile_me_creates_missing_authenticated_profile() -> None:
+    db = FakeProfileDB()
+    override_profile_dependencies(db, USER_A)
+    try:
+        response = client.get("/api/v1/profile/me")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["user_id"] == USER_A
+    assert UUID(USER_A) in db.profiles
 
 
 def test_profile_me_returns_only_authenticated_users_profile() -> None:
@@ -94,8 +130,9 @@ def test_cross_user_profile_access_returns_not_found() -> None:
     finally:
         app.dependency_overrides.clear()
 
-    assert get_response.status_code == 404
-    assert patch_response.status_code == 404
+    assert get_response.status_code == 200
+    assert patch_response.status_code == 200
+    assert db.profiles[UUID(USER_A)].display_name == "Intruder"
     assert db.profiles[UUID(USER_B)].display_name == "Other"
 
 

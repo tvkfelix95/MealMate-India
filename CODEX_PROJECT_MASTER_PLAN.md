@@ -949,14 +949,16 @@ task. Detailed acceptance criteria live in the phase sections above.
                                                             logs identified Supabase
                                                             `429 email rate limit exceeded`
 
-  P0-SMTP           Custom SMTP and       IN PROGRESS       Custom SMTP is enabled and
-                    end-to-end email                        persisted in the Supabase
-                    verification                            dashboard; real registration
-                                                            email delivery is not yet verified
+  P0-SMTP           Custom SMTP and       IN PROGRESS       Supabase logs show signup 200
+                    end-to-end email                        with confirmation requested and
+                    verification                            the email limiter changed to
+                                                            30/hour; verification still needs
+                                                            a fresh, successfully opened link
 
-  P0-429            Preserve provider     NOT STARTED       Current backend maps provider
-                    HTTP 429 response to                    error to 503; correct mapping and
-                    client                                  test
+  P0-429            Preserve provider     COMPLETE          Provider HTTP 429 now maps to
+                    HTTP 429 response to                    a sanitized client-facing rate
+                    client                                  limit response; focused and full
+                                                            backend tests pass
 
   P1-UI             Customer auth UI and  COMPLETE          `App.tsx`, `CustomerAuth.tsx`;
                     remove admin entry                      frontend lint/build passed;
@@ -1022,14 +1024,18 @@ task. Detailed acceptance criteria live in the phase sections above.
 ## 7. Current position --- update this after each task
 
 **Current phase:** Phase 1 --- Customer application foundation\
-**Last completed implementation task:** Customer authentication UI\
-**Last verified checks:** Backend `pytest` passed 85 tests with 3 existing
-deprecation warnings; frontend `npm run lint` and `npm run build` passed.\
+**Last completed implementation task:** Make customer registration resilient to
+post-signup profile failures\
+**Last verified checks:** Focused auth/profile tests passed 31 tests; full backend
+`pytest` passed 92 tests with 3 existing deprecation warnings; frontend
+`npm run lint` and `npm run build` passed.\
 **Next recommended task:** Send one real customer registration test email and
 verify delivery and confirmation behavior (P0-SMTP).\
-**Current known blockers:** Supabase built-in email provider returned
-`429 email rate limit exceeded`; custom SMTP is now enabled, but real delivery
-is not yet verified. Customer
+**Current known blockers:** Supabase signup now completes with confirmation
+requested and the configured email limit is 30/hour. A short per-address
+cooldown can still return 429, and one verification attempt returned `403`
+because the one-time token was not found; test with a fresh link only once.
+Customer
 onboarding persistence also lacks a safe display-name field and verified
 catalog UUID mapping for structured restrictions and equipment.\
 **Admin separation:** Admin setup is removed from public navigation;
