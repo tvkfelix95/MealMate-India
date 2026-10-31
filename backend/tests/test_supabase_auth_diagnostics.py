@@ -12,6 +12,8 @@ from app.services.supabase_auth import (
     _failure_category,
 )
 
+USER_ID = "00000000-0000-0000-0000-000000000001"
+
 
 @pytest.mark.parametrize(
     ("error", "category"),
@@ -119,11 +121,15 @@ def test_provider_email_confirmation_error_is_unverified(monkeypatch: pytest.Mon
 
 def test_signup_without_tokens_or_confirmation_timestamps_is_pending() -> None:
     session = SupabaseAuthService._session_from_response(
-        {"user": {"id": "user-id"}},
+        {
+            "id": USER_ID,
+            "email": "private@example.com",
+            "confirmation_sent_at": "2026-10-31T10:00:00Z",
+        },
         require_tokens=False,
     )
 
-    assert session.user_id == "user-id"
+    assert session.user_id == USER_ID
     assert session.access_token is None
     assert session.refresh_token is None
     assert session.email_confirmation_required is True
@@ -132,11 +138,9 @@ def test_signup_without_tokens_or_confirmation_timestamps_is_pending() -> None:
 def test_signup_without_tokens_with_unconfirmed_timestamps_is_pending() -> None:
     session = SupabaseAuthService._session_from_response(
         {
-            "user": {
-                "id": "user-id",
-                "email_confirmed_at": None,
-                "confirmed_at": None,
-            }
+            "id": USER_ID,
+            "email_confirmed_at": None,
+            "confirmed_at": None,
         },
         require_tokens=False,
     )
@@ -146,14 +150,22 @@ def test_signup_without_tokens_with_unconfirmed_timestamps_is_pending() -> None:
 
 def test_signup_response_requires_user_id() -> None:
     with pytest.raises(SupabaseAuthError, match="Invalid authentication provider response"):
-        SupabaseAuthService._session_from_response({"user": {}}, require_tokens=False)
+        SupabaseAuthService._session_from_response({"email": "private@example.com"}, require_tokens=False)
+
+
+def test_signup_response_rejects_invalid_user_uuid() -> None:
+    with pytest.raises(SupabaseAuthError, match="Invalid authentication provider response"):
+        SupabaseAuthService._session_from_response(
+            {"id": "not-a-uuid"},
+            require_tokens=False,
+        )
 
 
 @pytest.mark.parametrize(
     "response",
     [
-        {"user": {"id": "user-id"}, "session": {"access_token": "access-token"}},
-        {"user": {"id": "user-id"}, "session": {"access_token": 123}},
+        {"user": {"id": USER_ID}, "session": {"access_token": "access-token"}},
+        {"user": {"id": USER_ID}, "session": {"access_token": 123}},
     ],
 )
 def test_authenticated_session_is_not_treated_as_pending_when_incomplete(response: dict) -> None:
@@ -172,7 +184,7 @@ def test_registration_logs_safe_success_stages_without_sensitive_values(
         @staticmethod
         def json() -> dict[str, object]:
             return {
-                "user": {"id": "user-id"},
+                "user": {"id": USER_ID},
                 "access_token": "access-token-secret",
                 "refresh_token": "refresh-token-secret",
             }

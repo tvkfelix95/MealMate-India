@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from typing import Any
+from uuid import UUID
 
 import httpx
 
@@ -198,14 +199,34 @@ class SupabaseAuthService:
 
     @staticmethod
     def _session_from_response(data: dict[str, Any], require_tokens: bool) -> AuthSession:
-        session = data.get("session") if isinstance(data.get("session"), dict) else data
+        nested_session = data.get("session")
+        if nested_session is not None and not isinstance(nested_session, dict):
+            logger.warning(
+                "Supabase Auth session validation failed: stage=session_shape_validation_failed "
+                "exception_class=SupabaseAuthError category=response_schema"
+            )
+            raise SupabaseAuthError("Invalid authentication provider response")
+        session = nested_session if isinstance(nested_session, dict) else data
         user = data.get("user")
+        if not isinstance(user, dict) and isinstance(nested_session, dict):
+            user = nested_session.get("user")
+        if not isinstance(user, dict) and isinstance(data.get("id"), str):
+            user = data
         if not isinstance(user, dict) or not isinstance(user.get("id"), str):
             logger.warning(
                 "Supabase Auth session validation failed: stage=user_id_validation_failed "
                 "exception_class=SupabaseAuthError category=response_schema"
             )
             raise SupabaseAuthError("Invalid authentication provider response")
+        try:
+            user_id = str(UUID(user["id"]))
+        except (ValueError, TypeError, AttributeError) as exc:
+            logger.warning(
+                "Supabase Auth session validation failed: stage=user_id_validation_failed "
+                "exception_class=%s category=invalid_identifier",
+                type(exc).__name__,
+            )
+            raise SupabaseAuthError("Invalid authentication provider response") from exc
         raw_access_token = session.get("access_token")
         raw_refresh_token = session.get("refresh_token")
         if (
@@ -228,7 +249,7 @@ class SupabaseAuthService:
         email_confirmation_required = access_token is None and refresh_token is None
         logger.info("Supabase Auth session validation: stage=session_validation_passed")
         return AuthSession(
-            user_id=user["id"],
+            user_id=user_id,
             access_token=access_token,
             refresh_token=refresh_token,
             email_confirmation_required=email_confirmation_required,

@@ -1024,15 +1024,14 @@ task. Detailed acceptance criteria live in the phase sections above.
 ## 7. Current position --- update this after each task
 
 **Current phase:** Phase 1 --- Customer application foundation\
-**Last completed implementation task:** Add privacy-safe registration failure
-stage diagnostics while preserving confirmation-pending handling (commits
-`f11c488`, `fd28868`, `e2a99a3`)\
-**Last verified checks:** Focused authentication tests passed 32 tests; full
-backend `pytest` passed 100 tests with 3 existing deprecation warnings. Logs
-cover signup start, HTTP status, JSON parsing, user-ID validation,
-token/session validation, confirmation-pending responses and successful
-registration without logging personal data, credentials, tokens or response
-bodies. Commit `e2a99a3` was pushed successfully to `origin/master`.\
+**Last completed implementation task:** Fix Supabase GoTrue signup response
+parsing after production `user_id_validation_failed` evidence\
+**Last verified checks:** The parser now accepts the documented raw confirmation
+response whose user object is the top-level JSON object, and the authenticated
+response containing access/refresh tokens and a user object. It strictly
+validates the user UUID and token/session fields while preserving privacy-safe
+logging. Focused authentication tests passed 33 tests; full backend `pytest`
+passed 101 tests with 3 existing deprecation warnings.\
 **Next recommended task:** Send one real customer registration test email and
 verify delivery and confirmation behavior (P0-SMTP).\
 **Current known blockers:** Supabase signup now completes with confirmation
