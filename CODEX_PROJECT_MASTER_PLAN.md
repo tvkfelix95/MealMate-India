@@ -1026,13 +1026,13 @@ task. Detailed acceptance criteria live in the phase sections above.
 **Current phase:** Phase 1 --- Customer application foundation\
 **Last completed implementation task:** Add privacy-safe registration failure
 stage diagnostics while preserving confirmation-pending handling (commits
-`f11c488`, `fd28868`)\
+`f11c488`, `fd28868`, `e2a99a3`)\
 **Last verified checks:** Focused authentication tests passed 32 tests; full
 backend `pytest` passed 100 tests with 3 existing deprecation warnings. Logs
 cover signup start, HTTP status, JSON parsing, user-ID validation,
 token/session validation, confirmation-pending responses and successful
 registration without logging personal data, credentials, tokens or response
-bodies.\
+bodies. Commit `e2a99a3` was pushed successfully to `origin/master`.\
 **Next recommended task:** Send one real customer registration test email and
 verify delivery and confirmation behavior (P0-SMTP).\
 **Current known blockers:** Supabase signup now completes with confirmation
